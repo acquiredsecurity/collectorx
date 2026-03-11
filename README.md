@@ -311,4 +311,4 @@ MIT — See [LICENSE](LICENSE) for details.
 
 ---
 
-<p align="center"><sub>Built by <a href="https://acquiredsecurity.com">AcquiredSecurity</a></sub></p>
+<p align="center"><sub>Built by <a href="https://acquiredsec.com">AcquiredSecurity</a></sub></p>
