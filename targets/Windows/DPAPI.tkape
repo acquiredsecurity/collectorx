@@ -1,0 +1,36 @@
+Description: DPAPI Master Keys and related credential protection data
+Author: forensic-collect
+Version: 1.0
+Id: f1a2b3c4-d5e6-7890-abcd-ef1234567890
+RecreateDirectories: true
+Targets:
+    -
+        Name: DPAPI User Master Keys
+        Category: DPAPI
+        Path: C:\Users\%user%\AppData\Roaming\Microsoft\Protect\
+        Recursive: true
+    -
+        Name: DPAPI System Master Keys
+        Category: DPAPI
+        Path: C:\Windows\System32\Microsoft\Protect\
+        Recursive: true
+    -
+        Name: DPAPI User Credentials
+        Category: DPAPI
+        Path: C:\Users\%user%\AppData\Local\Microsoft\Credentials\
+        Recursive: true
+    -
+        Name: DPAPI System Credentials
+        Category: DPAPI
+        Path: C:\Windows\System32\config\systemprofile\AppData\Local\Microsoft\Credentials\
+        Recursive: true
+    -
+        Name: DPAPI User Vault
+        Category: DPAPI
+        Path: C:\Users\%user%\AppData\Local\Microsoft\Vault\
+        Recursive: true
+
+# Documentation
+# https://www.dsinternals.com/en/dpapi-backup-key-theft-auditing/
+# https://book.hacktricks.wiki/en/windows-hardening/windows-local-privilege-escalation/dpapi-extracting-passwords.html
+# DPAPI master keys protect browser passwords, WiFi credentials, RDP saved creds, etc.

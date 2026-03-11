@@ -1,0 +1,24 @@
+Description: Windows Defender log files (MPLog, MPDetection, MpCmdRun)
+Author: forensic-collect
+Version: 1.0
+Id: d3f4a5b6-c7d8-9012-3456-789abcdef012
+RecreateDirectories: true
+Targets:
+  - Name: Windows Defender MPLog
+    Category: Antivirus
+    Path: "C:\\ProgramData\\Microsoft\\Windows Defender\\Support"
+    FileMask: "MPLog-*"
+    Recursive: false
+    Comment: "Windows Defender operational logs"
+  - Name: Windows Defender MPDetection
+    Category: Antivirus
+    Path: "C:\\ProgramData\\Microsoft\\Windows Defender\\Support"
+    FileMask: "MPDetection-*"
+    Recursive: false
+    Comment: "Windows Defender detection event logs"
+  - Name: Windows Defender MpCmdRun
+    Category: Antivirus
+    Path: "C:\\ProgramData\\Microsoft\\Windows Defender\\Support"
+    FileMask: "MpCmdRun*"
+    Recursive: false
+    Comment: "Windows Defender command-line scan logs"

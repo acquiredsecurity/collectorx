@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>forensic-collect</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        zinc: {
+                            850: '#1f1f23',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .log-console {
+            max-height: 300px;
+            overflow-y: auto;
+            scroll-behavior: smooth;
+        }
+        .log-console::-webkit-scrollbar { width: 6px; }
+        .log-console::-webkit-scrollbar-track { background: #18181b; }
+        .log-console::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+        .checkbox-list { max-height: 280px; overflow-y: auto; }
+        .checkbox-list::-webkit-scrollbar { width: 6px; }
+        .checkbox-list::-webkit-scrollbar-track { background: #27272a; }
+        .checkbox-list::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse-bar { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        .progress-active { animation: pulse-bar 1.5s ease-in-out infinite; }
+    </style>
+</head>
+<body class="bg-zinc-900 text-zinc-100 min-h-screen">
+
+    <!-- Header -->
+    <header class="border-b border-zinc-700 bg-zinc-900/80 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-screen-2xl mx-auto px-6 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-lg font-semibold text-zinc-100">forensic-collect</h1>
+                    <p class="text-xs text-zinc-500">Evidence Collection &amp; Processing</p>
+                </div>
+            </div>
+            <span class="text-xs text-zinc-500 font-mono">v0.4.0</span>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-3xl mx-auto px-6 py-6">
+        <div>
+
+            <!-- Evidence Collector -->
+            <div class="space-y-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+                    <h2 class="text-sm font-semibold text-zinc-300 uppercase tracking-wider">Evidence Collector</h2>
+                </div>
+
+                <!-- Collection Settings Card -->
+                <div class="bg-zinc-800 rounded-xl border border-zinc-700 p-5 space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-zinc-400 mb-1.5">Source Path</label>
+                            <input type="text" id="collect-source" placeholder="C:\" class="w-full bg-zinc-900 border border-zinc-600 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50 outline-none transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-zinc-400 mb-1.5">Output Path</label>
+                            <input type="text" id="collect-output" placeholder="C:\evidence" class="w-full bg-zinc-900 border border-zinc-600 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50 outline-none transition">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-zinc-400 mb-1.5">Case Number</label>
+                            <input type="text" id="collect-case" placeholder="Optional" class="w-full bg-zinc-900 border border-zinc-600 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50 outline-none transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-zinc-400 mb-1.5">Operator</label>
+                            <input type="text" id="collect-operator" placeholder="Optional" class="w-full bg-zinc-900 border border-zinc-600 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50 outline-none transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-zinc-400 mb-1.5">Max Size (MB)</label>
+                            <input type="number" id="collect-maxsize" placeholder="0 = unlimited" min="0" class="w-full bg-zinc-900 border border-zinc-600 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/50 outline-none transition">
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="checkbox" id="collect-novss" class="w-4 h-4 rounded bg-zinc-900 border-zinc-600 text-emerald-500 focus:ring-emerald-500/50">
+                        <label for="collect-novss" class="text-sm text-zinc-400">Disable VSS shadow copy fallback</label>
+                    </div>
+                </div>
+
+                <!-- Targets Card -->
+                <div class="bg-zinc-800 rounded-xl border border-zinc-700 p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-medium text-zinc-300">Collection Targets</h3>
+                        <div class="flex gap-2">
+                            <button onclick="toggleAllTargets(true)" class="text-xs text-emerald-400 hover:text-emerald-300 transition">Select All</button>
+                            <span class="text-zinc-600">|</span>
+                            <button onclick="toggleAllTargets(false)" class="text-xs text-zinc-400 hover:text-zinc-300 transition">Clear</button>
+                        </div>
+                    </div>
+                    <div id="targets-list" class="checkbox-list space-y-1">
+                        <div class="text-sm text-zinc-500 py-4 text-center">Loading targets...</div>
+                    </div>
+                </div>
+
+                <!-- Collect Button -->
+                <button id="collect-btn" onclick="startCollection()" class="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white font-medium py-2.5 px-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    Start Collection
+                </button>
+
+                <!-- Collection Progress -->
+                <div id="collect-progress" class="hidden space-y-3">
+                    <div class="bg-zinc-800 rounded-xl border border-zinc-700 p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span id="collect-phase" class="text-xs font-medium text-zinc-400 uppercase tracking-wider">Initializing</span>
+                            <span id="collect-percent" class="text-xs font-mono text-emerald-400">0%</span>
+                        </div>
+                        <div class="w-full bg-zinc-700 rounded-full h-2">
+                            <div id="collect-bar" class="bg-emerald-500 h-2 rounded-full transition-all duration-300 progress-active" style="width: 0%"></div>
+                        </div>
+                        <p id="collect-status" class="text-xs text-zinc-500 mt-2 truncate"></p>
+                    </div>
+                    <div class="bg-zinc-900 rounded-xl border border-zinc-700">
+                        <div class="flex items-center justify-between px-4 py-2 border-b border-zinc-800">
+                            <span class="text-xs font-medium text-zinc-500">Console Output</span>
+                            <button onclick="clearLog('collect')" class="text-xs text-zinc-600 hover:text-zinc-400 transition">Clear</button>
+                        </div>
+                        <div id="collect-log" class="log-console p-3 font-mono text-xs space-y-0.5"></div>
+                    </div>
+                </div>
+
+                <!-- Collection Summary -->
+                <div id="collect-summary" class="hidden bg-zinc-800 rounded-xl border border-emerald-500/30 p-5 fade-in"></div>
+            </div>
+
+        </div>
+    </main>
+
+<script>
+// ===== State =====
+let collectSSE = null;
+
+// ===== Initialization =====
+document.addEventListener('DOMContentLoaded', () => {
+    loadTargets();
+});
+
+// ===== API Helpers =====
+async function apiFetch(url, options = {}) {
+    const res = await fetch(url, {
+        headers: { 'Content-Type': 'application/json' },
+        ...options,
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(err.error || res.statusText);
+    }
+    return res.json();
+}
+
+// ===== Targets =====
+async function loadTargets() {
+    try {
+        const targets = await apiFetch('/api/targets');
+        const list = document.getElementById('targets-list');
+        list.innerHTML = '';
+
+        targets.forEach(t => {
+            const div = document.createElement('div');
+            div.className = 'flex items-start gap-2 py-1 px-2 rounded hover:bg-zinc-700/50 transition';
+            div.innerHTML = `
+                <input type="checkbox" value="${t.name}" ${t.isDefault ? 'checked' : ''}
+                    class="target-cb mt-0.5 w-4 h-4 rounded bg-zinc-900 border-zinc-600 text-emerald-500 focus:ring-emerald-500/50">
+                <div class="min-w-0">
+                    <span class="text-sm text-zinc-200 block truncate">${t.name.replace('.tkape', '')}</span>
+                    <span class="text-xs text-zinc-500 block truncate">${t.description || ''}</span>
+                </div>
+            `;
+            list.appendChild(div);
+        });
+    } catch (err) {
+        document.getElementById('targets-list').innerHTML =
+            `<div class="text-sm text-red-400 py-4 text-center">Failed to load targets: ${err.message}</div>`;
+    }
+}
+
+function toggleAllTargets(checked) {
+    document.querySelectorAll('.target-cb').forEach(cb => cb.checked = checked);
+}
+
+function getSelectedTargets() {
+    return Array.from(document.querySelectorAll('.target-cb:checked')).map(cb => cb.value);
+}
+
+// ===== Collection =====
+async function startCollection() {
+    const source = document.getElementById('collect-source').value.trim();
+    const output = document.getElementById('collect-output').value.trim();
+    const targets = getSelectedTargets();
+
+    if (!source) return alert('Source path is required');
+    if (!output) return alert('Output path is required');
+    if (targets.length === 0) return alert('Select at least one target');
+
+    const btn = document.getElementById('collect-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Collecting...';
+
+    document.getElementById('collect-progress').classList.remove('hidden');
+    document.getElementById('collect-summary').classList.add('hidden');
+    clearLog('collect');
+
+    const maxSize = parseInt(document.getElementById('collect-maxsize').value) || 0;
+
+    try {
+        const { jobId } = await apiFetch('/api/collect', {
+            method: 'POST',
+            body: JSON.stringify({
+                source,
+                output,
+                targets,
+                caseNumber: document.getElementById('collect-case').value.trim(),
+                operator: document.getElementById('collect-operator').value.trim(),
+                maxSizeMB: maxSize,
+                noVSS: document.getElementById('collect-novss').checked,
+            }),
+        });
+
+        connectSSE(jobId, 'collect');
+    } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = 'Start Collection';
+        appendLog('collect', `Error: ${err.message}`, 'error');
+    }
+}
+
+// ===== SSE =====
+function connectSSE(jobId, panel) {
+    const source = new EventSource(`/api/jobs/${jobId}/progress`);
+
+    source.addEventListener('progress', (e) => {
+        const data = JSON.parse(e.data);
+        updateProgress(panel, data);
+    });
+
+    source.addEventListener('log', (e) => {
+        const data = JSON.parse(e.data);
+        appendLog(panel, data.message, data.level || 'info');
+    });
+
+    source.addEventListener('processor_status', (e) => {
+        const data = JSON.parse(e.data);
+        updateProcessorCard(data);
+    });
+
+    source.addEventListener('complete', (e) => {
+        const data = JSON.parse(e.data);
+        source.close();
+        onJobComplete(panel, data);
+    });
+
+    source.addEventListener('error', (e) => {
+        // Check if this is a server-sent error event or connection error
+        if (e.data) {
+            const data = JSON.parse(e.data);
+            appendLog(panel, `Error: ${data.error}`, 'error');
+            onJobFailed(panel, data.error);
+        }
+        source.close();
+    });
+
+    collectSSE = source;
+}
+
+// ===== Progress Updates =====
+function updateProgress(panel, data) {
+    const phaseNames = {
+        pass1: 'Pass 1 — Normal Copy',
+        pass2: 'Pass 2 — Raw NTFS',
+        pass3: 'Pass 3 — VSS Shadow Copy',
+        zip: 'Building ZIP Archive',
+        process: 'Processing',
+    };
+
+    const phase = document.getElementById(`${panel}-phase`);
+    const percent = document.getElementById(`${panel}-percent`);
+    const bar = document.getElementById(`${panel}-bar`);
+    const status = document.getElementById(`${panel}-status`);
+
+    if (data.phase) phase.textContent = phaseNames[data.phase] || data.phase;
+    if (data.percent !== undefined) {
+        const pct = Math.round(data.percent);
+        percent.textContent = `${pct}%`;
+        bar.style.width = `${pct}%`;
+    }
+    if (data.message) {
+        status.textContent = data.message;
+    } else if (data.file) {
+        status.textContent = data.file;
+    }
+}
+
+// ===== Job Completion =====
+function onJobComplete(panel, data) {
+    const bar = document.getElementById(`${panel}-bar`);
+    bar.style.width = '100%';
+    bar.classList.remove('progress-active');
+    document.getElementById(`${panel}-percent`).textContent = '100%';
+    document.getElementById(`${panel}-phase`).textContent = 'Complete';
+
+    const btn = document.getElementById(`${panel}-btn`);
+    btn.disabled = false;
+
+    const summary = document.getElementById(`${panel}-summary`);
+    summary.classList.remove('hidden');
+
+    btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg> Start Collection';
+    summary.innerHTML = `
+        <h3 class="text-sm font-semibold text-emerald-400 mb-3">Collection Complete</h3>
+        <div class="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
+            <div class="text-zinc-400">Output</div><div class="text-zinc-200 truncate font-mono text-xs">${data.zipPath || 'N/A'}</div>
+            <div class="text-zinc-400">Hostname</div><div class="text-zinc-200">${data.hostname || 'N/A'}</div>
+            <div class="text-zinc-400">Files Collected</div><div class="text-zinc-200">${data.filesCollected || 0}</div>
+            <div class="text-zinc-400">Files Failed</div><div class="${(data.filesFailed || 0) > 0 ? 'text-red-400' : 'text-zinc-200'}">${data.filesFailed || 0}</div>
+            <div class="text-zinc-400">Total Size</div><div class="text-zinc-200">${formatBytes(data.bytesCollected || 0)}</div>
+            <div class="text-zinc-400">Pass 1 (Copy)</div><div class="text-zinc-200">${data.pass1 || 0} files</div>
+            ${(data.pass2 || 0) > 0 ? `<div class="text-zinc-400">Pass 2 (NTFS)</div><div class="text-zinc-200">${data.pass2} files</div>` : ''}
+            ${(data.pass3 || 0) > 0 ? `<div class="text-zinc-400">Pass 3 (VSS)</div><div class="text-zinc-200">${data.pass3} files</div>` : ''}
+            <div class="text-zinc-400">Duration</div><div class="text-zinc-200">${(data.duration || 0).toFixed(1)}s</div>
+        </div>
+    `;
+}
+
+function onJobFailed(panel, errorMsg) {
+    const bar = document.getElementById(`${panel}-bar`);
+    bar.classList.remove('progress-active', 'bg-emerald-500');
+    bar.classList.add('bg-red-500');
+    document.getElementById(`${panel}-phase`).textContent = 'Failed';
+
+    const btn = document.getElementById(`${panel}-btn`);
+    btn.disabled = false;
+    btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg> Start Collection';
+
+    const summary = document.getElementById(`${panel}-summary`);
+    summary.classList.remove('hidden', 'border-emerald-500/30');
+    summary.classList.add('border-red-500/30');
+    summary.innerHTML = `
+        <h3 class="text-sm font-semibold text-red-400 mb-2">Job Failed</h3>
+        <p class="text-sm text-zinc-400">${errorMsg}</p>
+    `;
+}
+
+// ===== Log Console =====
+function appendLog(panel, message, level = 'info') {
+    const log = document.getElementById(`${panel}-log`);
+    const line = document.createElement('div');
+
+    const colors = {
+        info: 'text-zinc-400',
+        warn: 'text-amber-400',
+        error: 'text-red-400',
+        success: 'text-emerald-400',
+    };
+
+    const now = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    line.className = `${colors[level] || colors.info} leading-relaxed`;
+    line.textContent = `[${now}] ${message}`;
+    log.appendChild(line);
+
+    // Auto-scroll to bottom
+    log.scrollTop = log.scrollHeight;
+
+    // Keep max 1000 lines
+    while (log.children.length > 1000) {
+        log.removeChild(log.firstChild);
+    }
+}
+
+function clearLog(panel) {
+    document.getElementById(`${panel}-log`).innerHTML = '';
+}
+
+// ===== Utilities =====
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 bytes';
+    const k = 1024;
+    const sizes = ['bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+</script>
+
+</body>
+</html>

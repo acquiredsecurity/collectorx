@@ -1,0 +1,181 @@
+Description: Comprehensive forensic triage collection. Superset of KapeTriage and SANS_Triage with Active Directory, DPAPI, WMI MOF files, and Recycle Bin data files. Collects file system artifacts, registry hives, event logs, ETL traces, execution evidence, browser data, scheduled tasks, SRUM, SUM, WMI repository, DPAPI keys, NTDS.dit, thumbnail cache, USB device logs, Windows Timeline, and more.
+Author: Bradley Roughan
+Version: 1.0
+Id: 8a1b2c3d-4e5f-6789-0abc-def123456789
+RecreateDirectories: true
+Targets:
+    #
+    # === Antivirus & Security ===
+    #
+    -
+        Name: Antivirus
+        Category: Antivirus
+        Path: Antivirus.tkape
+    #
+    # === Logs (Event Logs + ETL + PowerShell + Firewall + USB) ===
+    #
+    -
+        Name: CombinedLogs
+        Category: Logs
+        Path: CombinedLogs.tkape
+    #
+    # === Evidence of Execution (Prefetch, Amcache, RecentFileCache, Syscache) ===
+    #
+    -
+        Name: EvidenceOfExecution
+        Category: Execution
+        Path: EvidenceOfExecution.tkape
+    #
+    # === File System ($MFT, $LogFile, $J, $SDS, $Boot, $T) ===
+    #
+    -
+        Name: FileSystem
+        Category: FileSystem
+        Path: FileSystem.tkape
+    #
+    # === LNK Files and Jump Lists ===
+    #
+    -
+        Name: LNKFilesAndJumpLists
+        Category: LNKFiles
+        Path: LNKFilesAndJumpLists.tkape
+    #
+    # === Recycle Bin ($I metadata + $R data files) ===
+    #
+    -
+        Name: RecycleBin_InfoFiles
+        Category: FileDeletion
+        Path: RecycleBin_InfoFiles.tkape
+    -
+        Name: RecycleBin_DataFiles
+        Category: FileDeletion
+        Path: RecycleBin_DataFiles.tkape
+    #
+    # === Registry Hives (System + User + RegBack) ===
+    #
+    -
+        Name: RegistryHives
+        Category: Registry
+        Path: RegistryHives.tkape
+    #
+    # === Remote Access Software ===
+    #
+    -
+        Name: RemoteAccess
+        Category: RemoteAdmin
+        Path: RemoteAdmin.tkape
+    #
+    # === Scheduled Tasks ===
+    #
+    -
+        Name: ScheduledTasks
+        Category: Persistence
+        Path: ScheduledTasks.tkape
+    #
+    # === SRUM (System Resource Usage Monitor) ===
+    #
+    -
+        Name: SRUM
+        Category: Execution
+        Path: SRUM.tkape
+    #
+    # === SUM (Software Usage Monitoring / User Access Logging) ===
+    #
+    -
+        Name: SUM
+        Category: Logs
+        Path: SUM.tkape
+    #
+    # === Thumbnail Cache ===
+    #
+    -
+        Name: ThumbCache
+        Category: FileKnowledge
+        Path: Thumbcache.tkape
+    #
+    # === WMI/WBEM Repository ===
+    #
+    -
+        Name: WBEM
+        Category: Persistence
+        Path: WBEM.tkape
+    #
+    # === WMI MOF Files ===
+    #
+    -
+        Name: MOF
+        Category: Persistence
+        Path: MOF.tkape
+    #
+    # === Web Browsers ===
+    #
+    -
+        Name: WebBrowsers
+        Category: Communications
+        Path: WebBrowsers.tkape
+    #
+    # === Cloud Storage Metadata ===
+    #
+    -
+        Name: CloudStorage_Metadata
+        Category: Apps
+        Path: CloudStorage_Metadata.tkape
+    #
+    # === Messaging Clients ===
+    #
+    -
+        Name: MessagingClients
+        Category: Communications
+        Path: MessagingClients.tkape
+    #
+    # === Windows Index Search ===
+    #
+    -
+        Name: WindowsIndexSearch
+        Category: FileKnowledge
+        Path: WindowsIndexSearch.tkape
+    #
+    # === Windows Timeline (ActivitiesCache.db) ===
+    #
+    -
+        Name: WindowsTimeline
+        Category: Execution
+        Path: WindowsTimeline.tkape
+    #
+    # === Active Directory (NTDS.dit) ===
+    #
+    -
+        Name: NTDS
+        Category: ActiveDirectory
+        Path: NTDS.tkape
+    #
+    # === DPAPI Master Keys & Credentials ===
+    #
+    -
+        Name: DPAPI
+        Category: Credentials
+        Path: DPAPI.tkape
+    #
+    # === AI History (Claude Code, ChatGPT Desktop) ===
+    #
+    -
+        Name: AIHistory
+        Category: AIHistory
+        Path: AIHistory.tkape
+
+# Documentation
+# This is a comprehensive forensic triage target that combines KapeTriage and SANS_Triage
+# with additional artifacts for Active Directory, DPAPI, and WMI MOF files.
+# It is designed to collect the maximum useful artifact set for DFIR investigations.
+#
+# Compared to KapeTriage, this adds:
+#   - Event Trace Logs (ETL), USB device logs, Windows Firewall logs (via CombinedLogs)
+#   - WMI/WBEM repository and MOF files
+#   - Thumbnail cache
+#   - Windows Index Search
+#   - Cloud storage metadata
+#   - Messaging client data
+#   - NTDS.dit (Active Directory)
+#   - DPAPI master keys and credentials
+#   - Recycle Bin data files ($R, not just $I metadata)
+#   - WMI MOF files

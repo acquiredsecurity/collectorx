@@ -1,0 +1,27 @@
+# Binaries
+forensic-collect
+forensic-collect.exe
+collectorx
+collectorx.exe
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Release builds
+release/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Staging/output from collections
+staging_*/
+evidence_*.zip
+*.log

@@ -1,0 +1,33 @@
+Description: Active Directory NTDS.dit and related files
+Author: forensic-collect
+Version: 1.0
+Id: d3b4a5c6-7e8f-9012-3456-789abcdef012
+RecreateDirectories: true
+Targets:
+  - Name: NTDS.dit
+    Category: ActiveDirectory
+    Path: "C:\\Windows\\NTDS"
+    FileMask: "ntds.dit"
+    Recursive: false
+    AlwaysAddToQueue: true
+    Comment: "Active Directory database — always locked on live DC"
+  - Name: NTDS edb logs
+    Category: ActiveDirectory
+    Path: "C:\\Windows\\NTDS"
+    FileMask: "edb*"
+    Recursive: false
+    AlwaysAddToQueue: true
+    Comment: "AD transaction logs"
+  - Name: NTDS temp
+    Category: ActiveDirectory
+    Path: "C:\\Windows\\NTDS"
+    FileMask: "temp.edb"
+    Recursive: false
+    AlwaysAddToQueue: true
+    Comment: "AD temp database"
+  - Name: NTDS schema
+    Category: ActiveDirectory
+    Path: "C:\\Windows\\NTDS"
+    FileMask: "schema.ini"
+    Recursive: false
+    Comment: "AD schema file"

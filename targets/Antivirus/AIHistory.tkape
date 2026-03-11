@@ -1,0 +1,36 @@
+Description: AI conversation history (Claude Code, ChatGPT Desktop)
+Author: forensic-collect
+Version: 1.0
+Id: a1b2c3d4-e5f6-7890-abcd-ef0123456789
+RecreateDirectories: true
+Targets:
+  - Name: Claude Code history
+    Category: AIHistory
+    Path: "C:\\Users\\%user%\\.claude"
+    FileMask: "history.jsonl"
+    Recursive: false
+    Comment: "Claude Code conversation history"
+  - Name: Claude Code session logs
+    Category: AIHistory
+    Path: "C:\\Users\\%user%\\.claude\\projects"
+    FileMask: "*.jsonl"
+    Recursive: true
+    Comment: "Claude Code per-project session transcripts"
+  - Name: ChatGPT Desktop LevelDB
+    Category: AIHistory
+    Path: "C:\\Users\\%user%\\AppData\\Local\\Packages"
+    FileMask: "*"
+    Recursive: true
+    Comment: "ChatGPT Desktop (UWP) data including LevelDB"
+  - Name: ChatGPT Desktop AppData Local
+    Category: AIHistory
+    Path: "C:\\Users\\%user%\\AppData\\Local\\OpenAI\\ChatGPT"
+    FileMask: "*"
+    Recursive: true
+    Comment: "ChatGPT Desktop (Electron) local data"
+  - Name: ChatGPT Desktop AppData Roaming
+    Category: AIHistory
+    Path: "C:\\Users\\%user%\\AppData\\Roaming\\ChatGPT"
+    FileMask: "*"
+    Recursive: true
+    Comment: "ChatGPT Desktop roaming data"
