@@ -18,7 +18,7 @@ Targets:
     Comment: "Claude Code per-project session transcripts"
   - Name: ChatGPT Desktop LevelDB
     Category: AIHistory
-    Path: "C:\\Users\\%user%\\AppData\\Local\\Packages"
+    Path: "C:\\Users\\%user%\\AppData\\Local\\Packages\\OpenAI.ChatGPT*"
     FileMask: "*"
     Recursive: true
     Comment: "ChatGPT Desktop (UWP) data including LevelDB"
