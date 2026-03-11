@@ -5,7 +5,7 @@
 <h1 align="center">CollectorX</h1>
 
 <p align="center">
-  <strong>Fast, forensically-sound Windows artifact collector built in Go</strong><br>
+  <strong>Fast forensic Windows artifact collector built in Go</strong><br>
   KAPE-compatible target definitions &bull; Three-pass locked file recovery &bull; Built-in web UI
 </p>
 
