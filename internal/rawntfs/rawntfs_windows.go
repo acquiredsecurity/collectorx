@@ -11,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
+	"time"
 
 	"www.velocidex.com/golang/go-ntfs/parser"
 )
@@ -128,7 +130,83 @@ func (r *Reader) CopyFile(sourcePath, destPath string) (uint64, error) {
 		}
 	}
 
+	// Preserve original NTFS timestamps from the MFT $STANDARD_INFORMATION attribute.
+	// Without this, raw-copied files (locked registry hives, etc.) get current system time.
+	r.preserveMFTTimestamps(ntfsPath, destPath)
+
 	return totalBytes, nil
+}
+
+// preserveMFTTimestamps looks up the MFT entry for the given NTFS path and applies
+// its $STANDARD_INFORMATION timestamps (created, modified, accessed) to destPath.
+// This is critical for forensic integrity — locked files copied via raw NTFS would
+// otherwise lose their original timestamps. Errors are silently ignored so that
+// timestamp failures never block file collection.
+func (r *Reader) preserveMFTTimestamps(ntfsPath, destPath string) {
+	// Strip any ADS suffix (e.g., "$UsnJrnl:$J" → "$UsnJrnl") for MFT lookup.
+	// The MFT entry is for the base file, not the alternate data stream.
+	lookupPath := ntfsPath
+	if idx := strings.LastIndex(filepath.Base(ntfsPath), ":"); idx >= 0 {
+		dir := filepath.Dir(ntfsPath)
+		base := filepath.Base(ntfsPath)[:idx]
+		if dir == "." {
+			lookupPath = base
+		} else {
+			lookupPath = dir + "/" + base
+		}
+	}
+
+	root, err := r.ntfsCtx.GetMFT(5)
+	if err != nil {
+		return
+	}
+
+	mftEntry, err := root.Open(r.ntfsCtx, lookupPath)
+	if err != nil {
+		return
+	}
+
+	si, err := mftEntry.StandardInformation(r.ntfsCtx)
+	if err != nil {
+		return
+	}
+
+	created := si.Create_time().Time
+	modified := si.File_altered_time().Time
+	accessed := si.File_accessed_time().Time
+
+	setFileTimestamps(destPath, created, accessed, modified)
+}
+
+// setFileTimestamps applies creation, access, and modification times to a file
+// using the Windows SetFileTime API, preserving all three NTFS timestamps.
+func setFileTimestamps(path string, created, accessed, modified time.Time) {
+	pathp, err := syscall.UTF16PtrFromString(path)
+	if err != nil {
+		return
+	}
+
+	h, err := syscall.CreateFile(
+		pathp,
+		syscall.FILE_WRITE_ATTRIBUTES,
+		syscall.FILE_SHARE_WRITE,
+		nil,
+		syscall.OPEN_EXISTING,
+		syscall.FILE_FLAG_BACKUP_SEMANTICS,
+		0,
+	)
+	if err != nil {
+		// Fallback: at least set mod+access time
+		_ = os.Chtimes(path, accessed, modified)
+		return
+	}
+	defer syscall.CloseHandle(h)
+
+	ctime := syscall.NsecToFiletime(created.UnixNano())
+	atime := syscall.NsecToFiletime(accessed.UnixNano())
+	mtime := syscall.NsecToFiletime(modified.UnixNano())
+
+	_ = syscall.SetFileTime(h, &ctime, &atime, &mtime)
 }
 
 // toNTFSPath converts a Windows path to an NTFS-relative path.

@@ -1,0 +1,16 @@
+# CollectorX config for ransomware lab scenario
+# Usage: forensic-collect.exe --config ransom-lab.yaml
+
+source: "C:\\"
+output: "D:\\output"
+case_number: "RANSOM-LAB-001"
+operator: "analyst"
+output_format: "zip"
+
+# export:
+#   type: s3
+#   bucket: your-bucket-name
+#   region: us-east-1
+#   prefix: "cases/RANSOM-LAB-001/"
+#   access_key: "YOUR_ACCESS_KEY"
+#   secret_key: "YOUR_SECRET_KEY"

@@ -1,0 +1,18 @@
+# Example: CollectorX with S3 upload
+# Copy this file, fill in your credentials, and run:
+#   forensic-collect.exe --config my-config.yaml
+
+source: "C:\\"
+output: "D:\\output"
+case_number: "IR-2026-001"
+operator: "analyst-name"
+output_format: "zip"
+
+export:
+  type: s3
+  bucket: my-forensics-bucket
+  region: us-east-1
+  prefix: "cases/IR-2026-001/"
+  access_key: "AKIA..."
+  secret_key: "your-secret-key-here"
+  # endpoint: "https://minio.local:9000"  # optional — for MinIO/Wasabi

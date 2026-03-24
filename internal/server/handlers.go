@@ -6,25 +6,28 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/bradleyroughan/forensic-collect/internal/collector"
+	"github.com/bradleyroughan/forensic-collect/internal/export"
 	"github.com/bradleyroughan/forensic-collect/internal/output"
-	"github.com/bradleyroughan/forensic-collect/internal/vss"
 )
 
 // --- Request / Response types ---
 
 type collectRequest struct {
-	Source     string   `json:"source"`
-	Output     string   `json:"output"`
-	Targets    []string `json:"targets"`
-	CaseNumber string   `json:"caseNumber"`
-	Operator   string   `json:"operator"`
-	MaxSizeMB  uint64   `json:"maxSizeMB"`
-	NoVSS      bool     `json:"noVSS"`
+	Source     string        `json:"source"`
+	Output     string        `json:"output"`
+	Targets    []string      `json:"targets"`
+	CaseNumber string        `json:"caseNumber"`
+	Operator   string        `json:"operator"`
+	Hostname   string        `json:"hostname"`
+	MaxSizeMB  uint64        `json:"maxSizeMB"`
+	NoVSS      bool          `json:"noVSS"`
+	Export     *export.Config `json:"export,omitempty"`
 }
 
 type processRequest struct {
@@ -37,6 +40,7 @@ type targetInfo struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	IsDefault   bool   `json:"isDefault"`
+	Category    string `json:"category"`
 }
 
 // --- Handlers ---
@@ -45,17 +49,25 @@ func (s *Server) handleGetTargets(w http.ResponseWriter, r *http.Request) {
 	type entry struct {
 		name string
 		desc string
+		cat  string
 	}
 
 	var entries []entry
 	for name, t := range s.Store.All() {
-		entries = append(entries, entry{name, t.Description})
+		// Derive category from directory structure
+		cat := "General"
+		parts := strings.Split(name, "/")
+		if len(parts) > 1 {
+			cat = parts[0]
+		}
+		entries = append(entries, entry{name, t.Description, cat})
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].name < entries[j].name })
 
-	// Mark well-known defaults
+	// Mark well-known defaults based on platform
+	defaultTarget := s.Platform.DefaultTriageTarget()
 	defaults := map[string]bool{
-		"KapeTriage.tkape": true,
+		strings.ToLower(defaultTarget): true,
 	}
 
 	var result []targetInfo
@@ -63,7 +75,8 @@ func (s *Server) handleGetTargets(w http.ResponseWriter, r *http.Request) {
 		result = append(result, targetInfo{
 			Name:        e.name,
 			Description: e.desc,
-			IsDefault:   defaults[e.name],
+			IsDefault:   defaults[strings.ToLower(e.name)],
+			Category:    e.cat,
 		})
 	}
 
@@ -73,6 +86,138 @@ func (s *Server) handleGetTargets(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGetProcessors(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, s.Processors.List())
 }
+
+// --- Browse & Drives ---
+
+type dirEntry struct {
+	Name  string `json:"name"`
+	IsDir bool   `json:"isDir"`
+	Size  int64  `json:"size"`
+}
+
+type driveInfo struct {
+	Path  string `json:"path"`
+	Label string `json:"label"`
+}
+
+func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		path = "/"
+	}
+
+	// Resolve symlinks (e.g., /tmp -> /private/tmp on macOS)
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		path = resolved
+	}
+
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("Cannot read directory: %v", err))
+		return
+	}
+
+	var result []dirEntry
+	for _, e := range entries {
+		// Skip hidden/system files for cleaner browsing
+		if strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
+		size := int64(0)
+		if info, err := e.Info(); err == nil {
+			size = info.Size()
+		}
+		result = append(result, dirEntry{
+			Name:  e.Name(),
+			IsDir: e.IsDir(),
+			Size:  size,
+		})
+	}
+
+	// Sort: directories first, then by name
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].IsDir != result[j].IsDir {
+			return result[i].IsDir
+		}
+		return result[i].Name < result[j].Name
+	})
+
+	writeJSON(w, map[string]any{
+		"path":    path,
+		"entries": result,
+	})
+}
+
+func (s *Server) handleGetDrives(w http.ResponseWriter, r *http.Request) {
+	var drives []driveInfo
+
+	switch runtime.GOOS {
+	case "windows":
+		for _, letter := range "ABCDEFGHIJKLMNOPQRSTUVWXYZ" {
+			path := string(letter) + ":\\"
+			if _, err := os.Stat(path); err == nil {
+				drives = append(drives, driveInfo{Path: path, Label: string(letter) + ":"})
+			}
+		}
+	case "darwin":
+		drives = append(drives, driveInfo{Path: "/", Label: "/"})
+		if entries, err := os.ReadDir("/Volumes"); err == nil {
+			for _, e := range entries {
+				if e.IsDir() {
+					drives = append(drives, driveInfo{
+						Path:  filepath.Join("/Volumes", e.Name()),
+						Label: e.Name(),
+					})
+				}
+			}
+		}
+	default: // linux
+		drives = append(drives, driveInfo{Path: "/", Label: "/"})
+		for _, mountDir := range []string{"/mnt", "/media"} {
+			if entries, err := os.ReadDir(mountDir); err == nil {
+				for _, e := range entries {
+					if e.IsDir() {
+						drives = append(drives, driveInfo{
+							Path:  filepath.Join(mountDir, e.Name()),
+							Label: e.Name(),
+						})
+					}
+				}
+			}
+		}
+	}
+
+	writeJSON(w, drives)
+}
+
+// --- Export ---
+
+type exportTestRequest struct {
+	Export export.Config `json:"export"`
+}
+
+func (s *Server) handleTestExport(w http.ResponseWriter, r *http.Request) {
+	var req exportTestRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	exporter, err := export.New(&req.Export)
+	if err != nil {
+		writeJSON(w, map[string]any{"success": false, "error": err.Error()})
+		return
+	}
+
+	if err := exporter.TestConnection(); err != nil {
+		writeJSON(w, map[string]any{"success": false, "error": err.Error()})
+		return
+	}
+
+	writeJSON(w, map[string]any{"success": true, "message": "Connection successful"})
+}
+
+// --- Collection ---
 
 func (s *Server) handleStartCollect(w http.ResponseWriter, r *http.Request) {
 	var req collectRequest
@@ -103,7 +248,7 @@ func (s *Server) handleStartCollect(w http.ResponseWriter, r *http.Request) {
 		targetNames = append(targetNames, name)
 	}
 	if len(targetNames) == 0 {
-		targetNames = []string{"KapeTriage.tkape"}
+		targetNames = []string{s.Platform.DefaultTriageTarget()}
 	}
 
 	job := s.createJob("collect")
@@ -127,6 +272,7 @@ func (s *Server) runCollection(job *Job, req collectRequest, targetNames []strin
 		SourceRoot:  req.Source,
 		TargetNames: targetNames,
 		Store:       s.Store,
+		Platform:    s.Platform,
 	})
 	if err != nil {
 		job.fail(fmt.Errorf("resolving targets: %w", err))
@@ -150,7 +296,10 @@ func (s *Server) runCollection(job *Job, req collectRequest, targetNames []strin
 		return
 	}
 
-	hostname := getHostname()
+	hostname := req.Hostname
+	if hostname == "" {
+		hostname = getHostname()
+	}
 	timestamp := time.Now().UTC().Format("20060102_150405")
 	stagingDir := filepath.Join(req.Output, fmt.Sprintf("staging_%s_%s", hostname, timestamp))
 	if err := os.MkdirAll(stagingDir, 0o755); err != nil {
@@ -161,7 +310,7 @@ func (s *Server) runCollection(job *Job, req collectRequest, targetNames []strin
 
 	// Create and configure collection engine
 	engine := collector.NewEngine(req.Source, stagingDir)
-	engine.UseVSS = !req.NoVSS && vss.Available()
+	_ = req.NoVSS // VSS is now opt-in via --vss-collect-all, not part of default collection
 	if req.MaxSizeMB > 0 {
 		engine.MaxFileSize = req.MaxSizeMB * 1024 * 1024
 	}
@@ -242,12 +391,12 @@ func (s *Server) runCollection(job *Job, req collectRequest, targetNames []strin
 	}
 
 	manifest, err := ew.Finish(output.ManifestStats{
-		TotalFiles:  stats.FilesCollected,
-		TotalBytes:  stats.BytesCollected,
-		Pass1Files:  stats.Pass1Count,
-		Pass2Files:  stats.Pass2Count,
-		Pass3Files:  stats.Pass3Count,
-		FailedFiles: stats.FilesFailed,
+		TotalFiles:   stats.FilesCollected,
+		TotalBytes:   stats.BytesCollected,
+		NormalFiles:  stats.NormalCount,
+		RawNTFSFiles: stats.RawNTFSCount,
+		VSSFiles:     stats.VSSCount,
+		FailedFiles:  stats.FilesFailed,
 	})
 	if err != nil {
 		zipFile.Close()
@@ -258,17 +407,66 @@ func (s *Server) runCollection(job *Job, req collectRequest, targetNames []strin
 
 	duration := manifest.CollectionEnd.Sub(manifest.CollectionStart)
 
-	job.complete(map[string]any{
+	// Export if configured
+	var exportResult *export.Result
+	if req.Export != nil && req.Export.Type != "" {
+		job.sendEvent("log", map[string]string{
+			"message": fmt.Sprintf("Starting %s export...", strings.ToUpper(req.Export.Type)),
+			"level":   "info",
+		})
+		job.sendEvent("progress", collector.ProgressEvent{
+			Phase:   "export",
+			Message: fmt.Sprintf("Exporting via %s...", strings.ToUpper(req.Export.Type)),
+		})
+
+		exporter, err := export.New(req.Export)
+		if err != nil {
+			job.sendEvent("log", map[string]string{
+				"message": fmt.Sprintf("Export setup failed: %v", err),
+				"level":   "error",
+			})
+		} else {
+			exportResult, err = exporter.Upload(zipPath, func(sent, total int64) {
+				if total > 0 {
+					pct := float64(sent) / float64(total) * 100
+					job.sendEvent("progress", collector.ProgressEvent{
+						Phase:   "export",
+						Percent: pct,
+						Message: fmt.Sprintf("Exporting: %s / %s", formatBytes(uint64(sent)), formatBytes(uint64(total))),
+					})
+				}
+			})
+			if err != nil {
+				job.sendEvent("log", map[string]string{
+					"message": fmt.Sprintf("Export failed: %v", err),
+					"level":   "error",
+				})
+			} else {
+				job.sendEvent("log", map[string]string{
+					"message": fmt.Sprintf("Export complete: %s", exportResult.Message),
+					"level":   "success",
+				})
+			}
+		}
+	}
+
+	completionData := map[string]any{
 		"zipPath":        zipPath,
 		"hostname":       manifest.Hostname,
 		"filesCollected": stats.FilesCollected,
 		"filesFailed":    stats.FilesFailed,
 		"bytesCollected": stats.BytesCollected,
-		"pass1":          stats.Pass1Count,
-		"pass2":          stats.Pass2Count,
-		"pass3":          stats.Pass3Count,
+		"normalCopy":     stats.NormalCount,
+		"rawNTFS":        stats.RawNTFSCount,
 		"duration":       duration.Seconds(),
-	})
+	}
+	if exportResult != nil {
+		completionData["exportSuccess"] = exportResult.Success
+		completionData["exportMessage"] = exportResult.Message
+		completionData["exportBytes"] = exportResult.BytesSent
+	}
+
+	job.complete(completionData)
 }
 
 func (s *Server) handleStartProcess(w http.ResponseWriter, r *http.Request) {
@@ -412,4 +610,22 @@ func getHostname() string {
 		return "UNKNOWN"
 	}
 	return h
+}
+
+func formatBytes(b uint64) string {
+	const (
+		KB = 1024
+		MB = KB * 1024
+		GB = MB * 1024
+	)
+	switch {
+	case b >= GB:
+		return fmt.Sprintf("%.2f GB", float64(b)/float64(GB))
+	case b >= MB:
+		return fmt.Sprintf("%.2f MB", float64(b)/float64(MB))
+	case b >= KB:
+		return fmt.Sprintf("%.2f KB", float64(b)/float64(KB))
+	default:
+		return fmt.Sprintf("%d bytes", b)
+	}
 }

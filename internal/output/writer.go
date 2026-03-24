@@ -19,9 +19,11 @@ import (
 type Manifest struct {
 	CollectionID    string          `json:"collection_id"`
 	Hostname        string          `json:"hostname"`
+	Platform        string          `json:"platform"`
 	CollectionStart time.Time       `json:"collection_start"`
 	CollectionEnd   *time.Time      `json:"collection_end"`
 	ToolVersion     string          `json:"tool_version"`
+	OutputFormat    string          `json:"output_format"`
 	Operator        string          `json:"operator,omitempty"`
 	CaseNumber      string          `json:"case_number,omitempty"`
 	TargetsUsed     []string        `json:"targets_used"`
@@ -31,23 +33,26 @@ type Manifest struct {
 
 // ManifestEntry records details about a single collected file.
 type ManifestEntry struct {
-	SourcePath   string `json:"source_path"`
-	DestPath     string `json:"dest_path"`
-	SizeBytes    uint64 `json:"size_bytes"`
-	MD5          string `json:"md5"`
-	SHA256       string `json:"sha256"`
-	CollectedVia string `json:"collected_via"`
-	TargetName   string `json:"target_name"`
+	SourcePath      string `json:"source_path"`
+	DestPath        string `json:"dest_path"`
+	SizeBytes       uint64 `json:"size_bytes"`
+	MD5             string `json:"md5"`
+	SHA256          string `json:"sha256"`
+	CollectedVia    string `json:"collected_via"`
+	TargetName      string `json:"target_name"`
+	FilterMatched   string `json:"filter_matched,omitempty"`
+	VSSSnapshotID   string `json:"vss_snapshot_id,omitempty"`
+	VSSSnapshotDate string `json:"vss_snapshot_date,omitempty"`
 }
 
 // ManifestStats holds aggregate statistics.
 type ManifestStats struct {
-	TotalFiles  uint64 `json:"total_files"`
-	TotalBytes  uint64 `json:"total_bytes"`
-	Pass1Files  uint64 `json:"pass1_files"`
-	Pass2Files  uint64 `json:"pass2_files"`
-	Pass3Files  uint64 `json:"pass3_files"`
-	FailedFiles uint64 `json:"failed_files"`
+	TotalFiles   uint64 `json:"total_files"`
+	TotalBytes   uint64 `json:"total_bytes"`
+	NormalFiles  uint64 `json:"normal_copy_files"`
+	RawNTFSFiles uint64 `json:"raw_ntfs_files"`
+	VSSFiles     uint64 `json:"vss_files,omitempty"`
+	FailedFiles  uint64 `json:"failed_files"`
 }
 
 // EvidenceWriter streams files into a ZIP archive while computing hashes.
@@ -84,6 +89,7 @@ func NewEvidenceWriter(w io.Writer, hostname string, targets []string) *Evidence
 }
 
 // AddFile adds a file to the ZIP from disk, computing hashes simultaneously.
+// Preserves the source file's modification time in the ZIP entry.
 func (ew *EvidenceWriter) AddFile(zipPath string, diskPath string) (*FileHashes, error) {
 	src, err := os.Open(diskPath)
 	if err != nil {
@@ -91,16 +97,30 @@ func (ew *EvidenceWriter) AddFile(zipPath string, diskPath string) (*FileHashes,
 	}
 	defer src.Close()
 
-	return ew.AddFileFromReader(zipPath, src)
+	// Use source file's modification time, not current time
+	var modTime time.Time
+	if info, err := src.Stat(); err == nil {
+		modTime = info.ModTime()
+	}
+
+	return ew.addFileFromReaderWithTime(zipPath, src, modTime)
 }
 
-// AddFileFromReader adds a file to the ZIP from a reader.
+// AddFileFromReader adds a file to the ZIP from a reader (uses current time).
 func (ew *EvidenceWriter) AddFileFromReader(zipPath string, r io.Reader) (*FileHashes, error) {
+	return ew.addFileFromReaderWithTime(zipPath, r, time.Now())
+}
+
+// addFileFromReaderWithTime adds a file to the ZIP with a specific modification time.
+func (ew *EvidenceWriter) addFileFromReaderWithTime(zipPath string, r io.Reader, modTime time.Time) (*FileHashes, error) {
 	header := &zip.FileHeader{
 		Name:   zipPath,
 		Method: zip.Deflate,
 	}
-	header.SetModTime(time.Now())
+	if modTime.IsZero() {
+		modTime = time.Now()
+	}
+	header.SetModTime(modTime)
 
 	w, err := ew.zipWriter.CreateHeader(header)
 	if err != nil {
@@ -146,6 +166,15 @@ func (ew *EvidenceWriter) SetOperator(op string) { ew.manifest.Operator = op }
 
 // SetCaseNumber sets the case number field.
 func (ew *EvidenceWriter) SetCaseNumber(cn string) { ew.manifest.CaseNumber = cn }
+
+// SetPlatform sets the platform field.
+func (ew *EvidenceWriter) SetPlatform(p string) { ew.manifest.Platform = p }
+
+// SetOutputFormat sets the output format field.
+func (ew *EvidenceWriter) SetOutputFormat(f string) { ew.manifest.OutputFormat = f }
+
+// GetManifest returns the current manifest (for VHD output).
+func (ew *EvidenceWriter) GetManifest() *Manifest { return ew.manifest }
 
 // Finish writes the manifest and finalizes the ZIP.
 func (ew *EvidenceWriter) Finish(stats ManifestStats) (*Manifest, error) {
