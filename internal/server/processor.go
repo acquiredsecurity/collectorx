@@ -16,6 +16,7 @@ type ProcessorDef struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	Category    string `json:"category"`
+	Platform    string `json:"platform"` // "windows" or "linux"
 	Available   bool   `json:"available"`
 	binaryPath  string
 	buildArgs   func(inputPath, outputPath string) []string
@@ -27,58 +28,35 @@ type ProcessorRegistry struct {
 	processors []ProcessorDef
 }
 
+// toolDef is used by platform-specific files to declare tools.
+type toolDef struct {
+	id, name, desc, category string
+	args                     func(string, string) []string
+}
+
+// Common arg patterns shared by platform-specific tool lists.
+var (
+	dirArgs = func(input, output string) []string {
+		return []string{"-d", input, "--out", output}
+	}
+	scanArgs = func(input, output string) []string {
+		return []string{"scan", "-d", input, "--out", output}
+	}
+)
+
 // NewProcessorRegistry creates a registry and discovers available tools.
+// platformTools() is provided by the build-tagged files (processor_windows.go / processor_linux.go).
 func NewProcessorRegistry(toolsDir string) *ProcessorRegistry {
 	r := &ProcessorRegistry{toolsDir: toolsDir}
 
-	// dirArgs: tool -d <input> --out <output>
-	dirArgs := func(input, output string) []string {
-		return []string{"-d", input, "--out", output}
-	}
-	// scanArgs: tool scan -d <input> --out <output>
-	scanArgs := func(input, output string) []string {
-		return []string{"scan", "-d", input, "--out", output}
-	}
-
-	// All 21 AS-Tools processors with correct binary names and CLI patterns
-	type toolDef struct {
-		id, name, desc, category string
-		args                     func(string, string) []string
-	}
-
-	known := []toolDef{
-		{"evtx", "evtx", "Windows Event Log parser (.evtx) with Sigma rule support", "EventLogs", dirArgs},
-		{"mftx", "mftx", "NTFS Master File Table parser ($MFT) with timestomp detection", "FileSystem", dirArgs},
-		{"pfx", "pfx", "Windows Prefetch execution evidence parser (.pf)", "Execution", scanArgs},
-		{"regx", "regx", "Windows Registry parser (SAM, SYSTEM, SOFTWARE, NTUSER)", "Registry", dirArgs},
-		{"usnx", "usnx", "NTFS USN Change Journal parser ($UsnJrnl:$J)", "FileSystem", dirArgs},
-		{"lnkx", "lnkx", "LNK shortcut and Jump List parser", "FileSystem", dirArgs},
-		{"srumx", "srumx", "System Resource Usage Monitor parser (SRUDB.dat)", "SystemActivity", scanArgs},
-		{"amcachex", "amcachex", "Amcache.hve application execution evidence parser", "Execution", scanArgs},
-		{"rbx", "rbx", "Recycle Bin $I file deletion evidence parser", "FileSystem", scanArgs},
-		{"etlx", "etlx", "Windows ETL trace log parser (kernel + ETW events)", "EventLogs", dirArgs},
-		{"aix", "aix", "AI chat history parser (Claude Code, ChatGPT)", "Applications",
-			func(input, output string) []string { return []string{"scan", "-d", input, "-o", output} }},
-		{"defx", "defx", "Windows Defender log parser (MPLog, MPDetection)", "Antivirus", dirArgs},
-		{"ntdsx", "ntdsx", "Active Directory NTDS.dit hash extractor", "ActiveDirectory", scanArgs},
-		{"wmix", "wmix", "WMI repository persistence artifact parser (OBJECTS.DATA)", "Persistence", dirArgs},
-		{"schtskx", "schtskx", "Scheduled Tasks XML parser", "Persistence", dirArgs},
-		{"shellbagx", "shellbagx", "Registry shellbag navigation history parser", "Registry", dirArgs},
-		{"webx", "webx", "Browser history analyzer (Chrome, Firefox, Edge, Brave, Arc)", "Applications", scanArgs},
-		{"pshx", "pshx", "PowerShell ConsoleHost_history parser", "Applications",
-			func(input, output string) []string { return []string{input, "-o", output} }},
-		{"vpnx", "vpnx", "SSL VPN log parser (Fortinet, Cisco, SonicWall, Ivanti)", "Network", dirArgs},
-		{"wtlx", "wtlx", "Windows Timeline and Search Index parser", "UserActivity", scanArgs},
-		{"carverx", "carverx", "Forensic file carving tool (E01, raw/dd images)", "FileSystem",
-			func(input, output string) []string { return []string{"-i", input, "--out", output} }},
-	}
-
-	for _, k := range known {
+	platformName := runtime.GOOS
+	for _, k := range platformTools() {
 		def := ProcessorDef{
 			ID:          k.id,
 			Name:        k.name,
 			Description: k.desc,
 			Category:    k.category,
+			Platform:    platformName,
 			buildArgs:   k.args,
 		}
 		def.binaryPath = r.findBinary(k.id)

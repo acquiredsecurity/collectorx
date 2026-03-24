@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bradleyroughan/forensic-collect/internal/pathresolver"
 	"github.com/bradleyroughan/forensic-collect/internal/target"
 	"github.com/bradleyroughan/forensic-collect/internal/web"
 )
@@ -20,6 +21,7 @@ type Server struct {
 	TargetsDir string
 	Store      *target.TargetStore
 	Processors *ProcessorRegistry
+	Platform   pathresolver.Platform
 
 	jobs   map[string]*Job
 	jobsMu sync.RWMutex
@@ -45,12 +47,13 @@ type SSEEvent struct {
 }
 
 // New creates a new web UI server.
-func New(port int, targetsDir, asToolsDir string, store *target.TargetStore) *Server {
+func New(port int, targetsDir, asToolsDir string, store *target.TargetStore, platform pathresolver.Platform) *Server {
 	return &Server{
 		Port:       port,
 		TargetsDir: targetsDir,
 		Store:      store,
 		Processors: NewProcessorRegistry(asToolsDir),
+		Platform:   platform,
 		jobs:       make(map[string]*Job),
 	}
 }
@@ -65,12 +68,15 @@ func (s *Server) Start() error {
 	// API routes
 	mux.HandleFunc("GET /api/targets", s.handleGetTargets)
 	mux.HandleFunc("GET /api/processors", s.handleGetProcessors)
+	mux.HandleFunc("GET /api/browse", s.handleBrowse)
+	mux.HandleFunc("GET /api/drives", s.handleGetDrives)
 	mux.HandleFunc("POST /api/collect", s.handleStartCollect)
 	mux.HandleFunc("POST /api/process", s.handleStartProcess)
+	mux.HandleFunc("POST /api/export/test", s.handleTestExport)
 	mux.HandleFunc("GET /api/jobs/{jobID}/progress", s.handleJobProgress)
 
 	addr := fmt.Sprintf(":%d", s.Port)
-	log.Printf("forensic-collect web UI available at http://localhost:%d", s.Port)
+	log.Printf("CollectorX web UI available at http://localhost:%d", s.Port)
 	return http.ListenAndServe(addr, mux)
 }
 
