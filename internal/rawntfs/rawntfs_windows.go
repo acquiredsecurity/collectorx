@@ -68,7 +68,8 @@ func (r *Reader) Close() error {
 func (r *Reader) CopyFile(sourcePath, destPath string) (uint64, error) {
 	ntfsPath := toNTFSPath(sourcePath)
 
-	data, err := parser.GetDataForPath(r.ntfsCtx, ntfsPath)
+	// Handle special NTFS metafiles that can't be accessed via path navigation
+	data, err := r.openNTFSData(ntfsPath)
 	if err != nil {
 		return 0, fmt.Errorf("raw NTFS open %q: %w", ntfsPath, err)
 	}
@@ -222,4 +223,52 @@ func toNTFSPath(windowsPath string) string {
 	path = strings.TrimLeft(path, "\\/")
 	path = strings.ReplaceAll(path, "\\", "/")
 	return path
+}
+
+// openNTFSData opens an NTFS file or metafile, handling special cases:
+// - $MFT (MFT entry 0) — accessed directly, not by path
+// - ADS streams (path:stream like $UsnJrnl:$J) — opened via OpenStream
+// - Regular files — accessed via GetDataForPath
+func (r *Reader) openNTFSData(ntfsPath string) (parser.RangeReaderAt, error) {
+	// Special case: $MFT itself (entry 0)
+	if ntfsPath == "$MFT" {
+		mft, err := r.ntfsCtx.GetMFT(0)
+		if err != nil {
+			return nil, fmt.Errorf("getting $MFT entry: %w", err)
+		}
+		// Open the $DATA stream of $MFT
+		for _, attr := range mft.EnumerateAttributes(r.ntfsCtx) {
+			if attr.Type().Name == "$DATA" && attr.Name() == "" {
+				return parser.OpenStream(r.ntfsCtx, mft, 128, 0, attr.Name())
+			}
+		}
+		return nil, fmt.Errorf("$MFT has no $DATA attribute")
+	}
+
+	// Handle ADS streams: split "path:stream" into path and stream name
+	basePath := ntfsPath
+	streamName := ""
+	// Check for ADS — look for colon after the last path separator
+	lastSep := strings.LastIndexAny(ntfsPath, "/\\")
+	colonIdx := strings.LastIndex(ntfsPath, ":")
+	if colonIdx > lastSep+1 {
+		basePath = ntfsPath[:colonIdx]
+		streamName = ntfsPath[colonIdx+1:]
+	}
+
+	if streamName != "" {
+		// ADS: navigate to the file, then open the named stream
+		root, err := r.ntfsCtx.GetMFT(5)
+		if err != nil {
+			return nil, err
+		}
+		entry, err := root.Open(r.ntfsCtx, basePath)
+		if err != nil {
+			return nil, fmt.Errorf("opening %q: %w", basePath, err)
+		}
+		return parser.OpenStream(r.ntfsCtx, entry, 128, 0, streamName)
+	}
+
+	// Regular file — standard path navigation
+	return parser.GetDataForPath(r.ntfsCtx, ntfsPath)
 }
